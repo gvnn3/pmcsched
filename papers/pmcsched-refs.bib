@@ -1,0 +1,257 @@
+% Master bibliography for the Concerto and Augur drafts.
+% Both concerto-sosp.tex and augur-sosp.tex reference this file via
+%   \bibliography{pmcsched-refs}
+% Contains (a) the full PMC-driven-scheduling reference set assembled earlier and
+% (b) the prior-art systems cited in the two proposals. Every entry carries a URL
+% (and a DOI where one exists). ACM-Reference-Format renders both.
+
+% ---------------------------------------------------------------------------
+% PMC-driven / contention-aware scheduling: the full earlier set
+% ---------------------------------------------------------------------------
+
+@inproceedings{snavely2000symbiotic,
+  author    = {Allan Snavely and Dean M. Tullsen},
+  title     = {Symbiotic Jobscheduling for a Simultaneous Multithreading Processor},
+  booktitle = {Proceedings of the 9th International Conference on Architectural Support for
+               Programming Languages and Operating Systems (ASPLOS)},
+  pages     = {234--244},
+  year      = {2000},
+  publisher = {ACM},
+  doi       = {10.1145/378993.379244},
+  url       = {https://cseweb.ucsd.edu/~tullsen/asplos00.pdf}
+}
+
+@inproceedings{snavely2002priorities,
+  author    = {Allan Snavely and Dean M. Tullsen and Geoff Voelker},
+  title     = {Symbiotic Jobscheduling with Priorities for a Simultaneous Multithreading Processor},
+  booktitle = {Proceedings of the 2002 ACM SIGMETRICS International Conference on Measurement and
+               Modeling of Computer Systems},
+  year      = {2002},
+  publisher = {ACM},
+  doi       = {10.1145/511334.511343},
+  url       = {https://cseweb.ucsd.edu/~tullsen/sigmet02.pdf}
+}
+
+@inproceedings{bulpin2005hyperthreading,
+  author    = {James R. Bulpin and Ian A. Pratt},
+  title     = {Hyper-Threading Aware Process Scheduling Heuristics},
+  booktitle = {Proceedings of the USENIX Annual Technical Conference (USENIX ATC)},
+  pages     = {103--106},
+  year      = {2005},
+  publisher = {USENIX Association},
+  url       = {https://www.usenix.org/legacy/events/usenix05/tech/general/full_papers/short_papers/bulpin/bulpin.pdf}
+}
+
+@inproceedings{suh2002memory,
+  author    = {G. Edward Suh and Srinivas Devadas and Larry Rudolph},
+  title     = {A New Memory Monitoring Scheme for Memory-Aware Scheduling and Partitioning},
+  booktitle = {Proceedings of the 8th International Symposium on High-Performance Computer
+               Architecture (HPCA)},
+  pages     = {117--128},
+  year      = {2002},
+  publisher = {IEEE Computer Society},
+  url       = {https://people.csail.mit.edu/devadas/pubs/hpca02.pdf}
+}
+
+@inproceedings{tam2007clustering,
+  author    = {David Tam and Reza Azimi and Michael Stumm},
+  title     = {Thread Clustering: Sharing-Aware Scheduling on {SMP-CMP-SMT} Multiprocessors},
+  booktitle = {Proceedings of the 2nd ACM SIGOPS/EuroSys European Conference on Computer Systems (EuroSys)},
+  pages     = {47--58},
+  year      = {2007},
+  publisher = {ACM},
+  doi       = {10.1145/1272998.1273004},
+  url       = {https://dl.acm.org/doi/10.1145/1272998.1273004}
+}
+
+@inproceedings{fedorova2007isolation,
+  author    = {Alexandra Fedorova and Margo Seltzer and Michael D. Smith},
+  title     = {Improving Performance Isolation on Chip Multiprocessors via an Operating System Scheduler},
+  booktitle = {Proceedings of the 16th International Conference on Parallel Architecture and
+               Compilation Techniques (PACT)},
+  pages     = {25--38},
+  year      = {2007},
+  publisher = {IEEE Computer Society},
+  doi       = {10.1109/PACT.2007.40},
+  url       = {https://ieeexplore.ieee.org/document/4336197}
+}
+
+@article{knauerhase2008osobservations,
+  author  = {Rob Knauerhase and Paul Brett and Barbara Hohlt and Tong Li and Scott Hahn},
+  title   = {Using OS Observations to Improve Performance in Multicore Systems},
+  journal = {IEEE Micro},
+  volume  = {28},
+  number  = {3},
+  pages   = {54--66},
+  year    = {2008},
+  doi     = {10.1109/MM.2008.48},
+  url     = {https://ieeexplore.ieee.org/document/4550860}
+}
+
+@inproceedings{banikazemi2008pam,
+  author    = {Mohammad Banikazemi and Dan E. Poff and B{\"u}lent Abali},
+  title     = {{PAM}: A Novel Performance/Power Aware Meta-Scheduler for Multi-Core Systems},
+  booktitle = {Proceedings of the 2008 ACM/IEEE Conference on Supercomputing (SC)},
+  articleno = {39},
+  year      = {2008},
+  publisher = {IEEE Press},
+  url       = {https://ieeexplore.ieee.org/document/5222643}
+}
+
+@inproceedings{zhuravlev2010contention,
+  author    = {Sergey Zhuravlev and Sergey Blagodurov and Alexandra Fedorova},
+  title     = {Addressing Shared Resource Contention in Multicore Processors via Scheduling},
+  booktitle = {Proceedings of the 15th International Conference on Architectural Support for
+               Programming Languages and Operating Systems (ASPLOS)},
+  pages     = {129--142},
+  year      = {2010},
+  publisher = {ACM},
+  doi       = {10.1145/1735970.1736036},
+  url       = {https://people.ece.ubc.ca/sasha/papers/asplos212-zhuravlev.pdf}
+}
+
+@article{blagodurov2010contentionaware,
+  author  = {Sergey Blagodurov and Sergey Zhuravlev and Alexandra Fedorova},
+  title   = {Contention-Aware Scheduling on Multicore Systems},
+  journal = {ACM Transactions on Computer Systems},
+  volume  = {28},
+  number  = {4},
+  pages   = {8:1--8:45},
+  year    = {2010},
+  doi     = {10.1145/1880018.1880019},
+  url     = {https://www.blagodurov.net/files/a8-blagodurov.pdf}
+}
+
+@inproceedings{merkel2010resourceconscious,
+  author    = {Andreas Merkel and Jan Stoess and Frank Bellosa},
+  title     = {Resource-Conscious Scheduling for Energy Efficiency on Multicore Processors},
+  booktitle = {Proceedings of the 5th European Conference on Computer Systems (EuroSys)},
+  pages     = {153--166},
+  year      = {2010},
+  publisher = {ACM},
+  doi       = {10.1145/1755913.1755930},
+  url       = {https://os.itec.kit.edu/1470_1329.php}
+}
+
+@inproceedings{blagodurov2011numa,
+  author    = {Sergey Blagodurov and Sergey Zhuravlev and Mohammad Dashti and Alexandra Fedorova},
+  title     = {A Case for NUMA-Aware Contention Management on Multicore Systems},
+  booktitle = {Proceedings of the 2011 USENIX Annual Technical Conference (USENIX ATC)},
+  year      = {2011},
+  publisher = {USENIX Association},
+  url       = {https://www.usenix.org/conference/usenixatc11/case-numa-aware-contention-management-multicore-systems}
+}
+
+% ---------------------------------------------------------------------------
+% Datacenter QoS / interference management (proposal prior art)
+% ---------------------------------------------------------------------------
+
+@inproceedings{lo2015heracles,
+  author    = {David Lo and Liqun Cheng and Rama Govindaraju and Parthasarathy Ranganathan and
+               Christos Kozyrakis},
+  title     = {Heracles: Improving Resource Efficiency at Scale},
+  booktitle = {Proceedings of the 42nd Annual International Symposium on Computer Architecture (ISCA)},
+  pages     = {450--462},
+  year      = {2015},
+  publisher = {ACM},
+  doi       = {10.1145/2749469.2749475},
+  url       = {https://dl.acm.org/doi/10.1145/2749469.2749475}
+}
+
+@inproceedings{chen2019parties,
+  author    = {Shuang Chen and Christina Delimitrou and Jos{\'e} F. Mart{\'\i}nez},
+  title     = {{PARTIES}: {QoS}-Aware Resource Partitioning for Multiple Interactive Services},
+  booktitle = {Proceedings of the 24th International Conference on Architectural Support for
+               Programming Languages and Operating Systems (ASPLOS)},
+  pages     = {107--120},
+  year      = {2019},
+  publisher = {ACM},
+  doi       = {10.1145/3297858.3304005},
+  url       = {https://dl.acm.org/doi/10.1145/3297858.3304005}
+}
+
+@inproceedings{ousterhout2019shenango,
+  author    = {Amy Ousterhout and Joshua Fried and Jonathan Behrens and Adam Belay and
+               Hari Balakrishnan},
+  title     = {Shenango: Achieving High {CPU} Efficiency for Latency-Sensitive Datacenter Workloads},
+  booktitle = {16th USENIX Symposium on Networked Systems Design and Implementation (NSDI 19)},
+  pages     = {361--378},
+  year      = {2019},
+  publisher = {USENIX Association},
+  url       = {https://www.usenix.org/conference/nsdi19/presentation/ousterhout}
+}
+
+@inproceedings{fried2020caladan,
+  author    = {Joshua Fried and Zhenyuan Ruan and Amy Ousterhout and Adam Belay},
+  title     = {Caladan: Mitigating Interference at Microsecond Timescales},
+  booktitle = {14th USENIX Symposium on Operating Systems Design and Implementation (OSDI 20)},
+  pages     = {281--297},
+  year      = {2020},
+  publisher = {USENIX Association},
+  url       = {https://www.usenix.org/conference/osdi20/presentation/fried}
+}
+
+% ---------------------------------------------------------------------------
+% Tiered / CXL memory (proposal prior art)
+% ---------------------------------------------------------------------------
+
+@inproceedings{maruf2023tpp,
+  author    = {Hasan Al Maruf and Hao Wang and Abhishek Dhanotia and Johannes Weiner and
+               Niket Agarwal and Pallab Bhattacharya and Chris Petersen and Mosharaf Chowdhury and
+               Shobhit Kanaujia and Prakash Chauhan},
+  title     = {{TPP}: Transparent Page Placement for {CXL}-Enabled Tiered-Memory},
+  booktitle = {Proceedings of the 28th International Conference on Architectural Support for
+               Programming Languages and Operating Systems (ASPLOS), Volume 3},
+  year      = {2023},
+  publisher = {ACM},
+  doi       = {10.1145/3582016.3582063},
+  url       = {https://dl.acm.org/doi/10.1145/3582016.3582063}
+}
+
+@inproceedings{li2023pond,
+  author    = {Huaicheng Li and Daniel S. Berger and Lisa Hsu and Daniel Ernst and Pantea Zardoshti and
+               Stanko Novakovic and Monish Shah and Samir Rajadnya and Scott Lee and Ishwar Agarwal and
+               Mark D. Hill and Marcus Fontoura and Ricardo Bianchini},
+  title     = {Pond: {CXL}-Based Memory Pooling Systems for Cloud Platforms},
+  booktitle = {Proceedings of the 28th International Conference on Architectural Support for
+               Programming Languages and Operating Systems (ASPLOS), Volume 2},
+  pages     = {574--587},
+  year      = {2023},
+  publisher = {ACM},
+  doi       = {10.1145/3575693.3578835},
+  url       = {https://dl.acm.org/doi/10.1145/3575693.3578835}
+}
+
+% ---------------------------------------------------------------------------
+% Mechanisms / specifications
+% ---------------------------------------------------------------------------
+
+@misc{intel-rdt,
+  author       = {{Intel Corporation}},
+  title        = {Intel Resource Director Technology ({RDT}): Cache/Memory Bandwidth Monitoring
+                  and Allocation},
+  howpublished = {Intel 64 and IA-32 Architectures Software Developer's Manual, Vol.\ 3B},
+  year         = {2023},
+  url          = {https://www.intel.com/content/www/us/en/architecture-and-technology/resource-director-technology.html}
+}
+
+@misc{linux-resctrl,
+  author = {{The Linux Kernel}},
+  title  = {User Interface for Resource Control Feature ({resctrl})},
+  year   = {2024},
+  url    = {https://docs.kernel.org/arch/x86/resctrl.html}
+}
+
+@misc{linux-schedext,
+  author = {{The Linux Kernel}},
+  title  = {Extensible Scheduler Class ({sched\_ext})},
+  year   = {2024},
+  url    = {https://docs.kernel.org/scheduler/sched-ext.html}
+}
+
+@misc{cxl-spec,
+  author = {{CXL Consortium}},
+  title  = {Compute Express Link ({CXL}) Specification},
+  year   = {2023},
+  url    = {https://computeexpresslink.org/}
+}

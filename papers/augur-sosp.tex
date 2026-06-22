@@ -1,0 +1,267 @@
+% Augur --- NSDI/SOSP submission draft (acmart sigconf).
+% Compiles standalone in "nonacm" draft mode (Overleaf or a TeX Live install
+% with texlive-publishers, which ships acmart + ACM-Reference-Format.bst).
+% Requires the shared bibliography pmcsched-refs.bib in the same directory,
+% and the pgfgantt and array packages (both ship with TeX Live).
+% For a double-blind submission, replace the \documentclass line with:
+%   \documentclass[sigconf,review,anonymous]{acmart}
+% and fill in the \acmConference / \setcopyright metadata.
+
+\documentclass[sigconf,nonacm]{acmart}
+\settopmatter{printacmref=false}
+\setcopyright{none}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{pgfgantt}
+
+\begin{document}
+
+\title{Augur: Predictive Counter-Driven Scheduling for Tiered and
+CXL-Attached Memory}
+
+\author{Anonymous Author(s)}
+\affiliation{%
+  \institution{Affiliation withheld for review}
+  \country{}
+}
+
+\begin{abstract}
+Interference-aware schedulers react to contention after it appears. This is
+acceptable when the corrective action is cheap---reallocating a core takes
+microseconds---but it breaks down on tiered and CXL-attached memory, where the
+contention that matters is link and controller bandwidth and the corrective
+actions (page migration across tiers, cross-socket rebalancing) cost orders of
+magnitude more. By the time a reactive controller observes the contention, the
+tail latency it was protecting has already been spent. We argue that hardware
+performance-monitoring-counter (PMC) \emph{time series} carry enough leading
+signal to predict phase transitions before they materialize, and we present
+Augur, a scheduler that forecasts contention from the counter stream and
+\emph{pre-positions} both threads and pages across the memory hierarchy. Augur
+co-designs placement with tiering: rather than letting an independent page-mover
+chase hot pages after the fact, the scheduler anticipates a phase and stages the
+working set on the right tier ahead of demand. We target memory-bound
+microservices on real CXL hardware and evaluate against reactive interference
+control and transparent tiering, with the central question being whether
+prediction beats reaction once corrective actions are expensive.
+\end{abstract}
+
+\maketitle
+
+\section{Introduction}
+Datacenter resource managers have driven the per-request correction loop down to
+microseconds. Shenango~\cite{ousterhout2019shenango} reallocates cores at
+microsecond granularity to keep latency-sensitive services responsive, and
+Caladan~\cite{fried2020caladan} extends this to interference, reacting to
+memory-bandwidth and hyperthread contention by moving cores almost as fast as the
+contention arises. The implicit assumption is that the corrective action is cheap
+relative to the contention's duration.
+
+Tiered and CXL-attached memory breaks that assumption. CXL Type-3 memory adds a
+second, slower, lower-bandwidth tier behind a load-store
+interface~\cite{cxl-spec}, and the systems response has been transparent page
+placement and pooling that migrate hot data toward fast
+memory~\cite{maruf2023tpp,li2023pond}. But migration is expensive and
+asymmetric: moving a working set across the tier boundary costs far more than
+stealing a core, and the bandwidth contention that triggers it lives on a link
+the scheduler does not currently observe. A reactive controller therefore pays
+twice---once for the latency incurred before it notices, and again for the
+high-cost migration it must then perform---and it can thrash if phases alternate
+faster than migrations complete.
+
+Our thesis is that the PMU is a \emph{leading} indicator, not merely a lagging
+one: the counter time series preceding a phase transition (rising LLC miss rate,
+shifting bandwidth split across tiers, changing stall composition) is predictive
+enough to act on \emph{before} the expensive contention materializes. Augur
+forecasts the transition and pre-positions threads and pages so that the
+corrective action is already complete when demand arrives.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+\item Evidence that counter time series predict memory-tier phase transitions far
+enough ahead to amortize migration cost---the precondition for the whole design.
+\item A lightweight online predictor over the PMC stream and a scheduler that
+turns its forecasts into joint thread-placement and page-staging decisions.
+\item A co-design of scheduling and tiering in which the scheduler, not an
+independent page-mover, owns the anticipatory placement decision.
+\item An evaluation on real CXL hardware isolating the benefit of prediction over
+reaction.
+\end{enumerate}
+
+\section{Background and Motivation}
+\paragraph{Why reaction is too slow here.}
+On a monolithic DRAM system, the cost of mispredicting contention is a few
+microseconds of recovery. On a tiered system, a misplaced working set incurs the
+full fast-vs-slow latency and bandwidth gap on every access until a migration
+completes, and the migration itself consumes bandwidth that competes with the
+very workload it is trying to help. The economics of correction have changed, and
+with them the case for prediction.
+
+\paragraph{Counters as leading indicators.}
+The contention-aware scheduling literature used counters as an instantaneous
+classifier of a co-runner's badness~\cite{zhuravlev2010contention}, and even the
+earliest counter-driven scheduling work sampled behavior to decide
+placement~\cite{snavely2000symbiotic,suh2002memory}. Augur's departure is
+temporal: it models the counter \emph{trajectory}. Many datacenter services are
+strongly phased at the request and epoch level, which is precisely the structure
+a short-horizon predictor can exploit.
+
+\paragraph{Planned motivating measurement.}
+We will instrument a memory-bound microservice on a CXL testbed and show (i) that
+tail-latency spikes coincide with bandwidth-split phase transitions, and (ii)
+that those transitions are preceded by a detectable counter signature with enough
+lead time to stage pages before the spike---quantifying the lead-time budget the
+predictor must hit to be worthwhile.
+
+\section{Design}
+\paragraph{Predictor.}
+Augur runs a lightweight online model over a rotating set of PMCs (per-tier
+bandwidth via RDT MBM~\cite{intel-rdt}, LLC miss rate, IPC, and stall
+composition). The model is deliberately small---change-point detection over the
+counter stream plus a short-horizon classifier of the next phase---so that it
+runs in the scheduler path with bounded overhead. The output is a forecast of the
+next phase and a confidence, not a control action.
+
+\paragraph{Anticipatory actuation.}
+On a confident forecast, Augur (i) places or migrates threads to the cache/memory
+domain that the predicted phase will favor, and (ii) stages the predicted hot set
+on fast memory ahead of demand, demoting cold pages to make room. Crucially the
+scheduler owns this decision so that placement and tiering agree; an independent
+page-mover reacting to access bits would fight the scheduler's intent.
+
+\paragraph{Guarding against misprediction.}
+Prediction can be wrong, and acting on a wrong forecast wastes bandwidth. Augur
+gates actuation on confidence and on a cost model: it only pre-migrates when the
+expected saved tail latency exceeds the migration's bandwidth cost, and it falls
+back to reactive behavior when confidence is low, so that a bad predictor never
+does worse than a reactive baseline.
+
+\paragraph{Mechanism.}
+Augur is built on \texttt{sched\_ext}~\cite{linux-schedext} for placement and on
+the kernel's tiering interfaces for page staging, keeping it deployable on a
+stock kernel.
+
+\section{Evaluation Plan}
+\paragraph{Hardware.} A server with CXL Type-3 memory (fast local DRAM + slower
+CXL tier), with a NUMA-latency-emulated configuration as a cross-check where real
+CXL parts are unavailable.
+
+\paragraph{Workloads.} Memory-bound microservices (key-value stores, a search
+leaf), a recommendation-style embedding lookup, and a graph-analytics job---all
+chosen for phased, bandwidth-sensitive behavior.
+
+\paragraph{Baselines.} Caladan (reactive interference control), transparent
+tiering in the style of TPP~\cite{maruf2023tpp} and pooling \`a la
+Pond~\cite{li2023pond}, and stock Linux tiering. The pivotal comparison is
+predict (Augur) vs.\ react (everything else) at matched migration budgets.
+
+\paragraph{Metrics and ablations.} p99/p99.9 latency, fast-tier hit rate, wasted
+migration bandwidth, and machine utilization at fixed SLO. Ablations: reaction-only
+Augur (predictor disabled), prediction without the cost gate, and full Augur;
+lead-time sensitivity; and behavior under deliberately mispredicted phases to show
+the fallback never regresses below reactive.
+
+\section{Related Work}
+Augur builds on microsecond-scale datacenter
+scheduling~\cite{ousterhout2019shenango,fried2020caladan} and on counter-driven
+contention awareness~\cite{zhuravlev2010contention,snavely2000symbiotic,
+suh2002memory,fedorova2007isolation}, but inverts their temporal stance from
+reactive to predictive. It is complementary to transparent tiering and CXL
+pooling~\cite{maruf2023tpp,li2023pond}: those systems decide \emph{where} pages
+should live, while Augur decides \emph{when} to move them and the threads that use
+them, driven by a forecast rather than by observed access after the fact.
+Table~\ref{tab:related} places Augur against the partitioning and scheduling
+lines, including its companion design Concerto.
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}>{\raggedright}p{2.6cm} >{\raggedright}p{3.1cm} >{\raggedright}p{3.5cm} l >{\raggedright}p{2.3cm} >{\raggedright\arraybackslash}p{2.2cm}@{}}
+\toprule
+\textbf{System} & \textbf{Signal} & \textbf{Actuator(s)} & \textbf{Mode} & \textbf{Commodity path?} & \textbf{Target HW} \\
+\midrule
+Suh et al.\ '02~\cite{suh2002memory}        & Cache miss-rate curves        & Scheduling + partitioning (proposed) & React   & No (custom HW)   & Uniform CMP \\
+Fedorova et al.\ '07~\cite{fedorova2007isolation} & IPC (cache-fair)        & Scheduling (timeslice)               & React   & Research kernel  & CMP \\
+Zhuravlev et al.\ '10~\cite{zhuravlev2010contention} & LLC miss rate        & Scheduling (placement)               & React   & Research         & Multicore \\
+Heracles '15~\cite{lo2015heracles}          & Latency probes, util.\        & Partitioning (CAT, DVFS, power)      & React   & Yes              & Uniform \\
+PARTIES '19~\cite{chen2019parties}          & Per-service QoS               & Partitioning (multi-resource)        & React   & Yes              & Uniform \\
+Caladan '20~\cite{fried2020caladan}         & Mem.\ bandwidth, req.\ time   & Scheduling (fast core realloc.)      & React   & Kernel module    & Uniform \\
+Concerto (companion)                        & Full PMC + CMT/MBM            & Scheduling + partitioning (joint)    & React   & \texttt{sched\_ext} & Chiplet / CXL \\
+\textbf{Augur} (this work)                  & PMC \emph{time series}        & \textbf{Scheduling + page tiering}   & \textbf{Predict} & \texttt{sched\_ext} & \textbf{Tiered / CXL} \\
+\bottomrule
+\end{tabular}
+\caption{Where Augur sits relative to counter-driven scheduling and QoS
+partitioning. Prior systems commit to a single actuator and react after
+contention appears; Augur instead forecasts phase transitions from the counter
+trajectory and pre-positions threads and pages, while the companion Concerto
+design co-actuates scheduling and partitioning. ``Commodity path?'' indicates
+whether the technique was shown in a deployable commodity-kernel path rather than
+simulation or a research OS.}
+\label{tab:related}
+\end{table*}
+
+\section{Research Plan and Threats to Validity}
+The make-or-break threat is whether prediction genuinely beats reaction rather
+than merely matching it; the evaluation must show a regime where the lead-time
+budget is met and the cost-gated actuator wins, and must demonstrate graceful
+fallback when the predictor is wrong. Secondary threats are predictor overfitting
+to phase-regular benchmarks (addressed with irregular, adversarial phase
+schedules) and the availability of representative CXL hardware (addressed with an
+emulated cross-check). The 18-month plan is shown in Figure~\ref{fig:gantt}.
+
+\begin{figure*}[t]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{ganttchart}[
+  hgrid, vgrid,
+  x unit=0.82cm,
+  y unit title=0.6cm,
+  y unit chart=0.6cm,
+  title height=1,
+  bar height=0.6,
+  bar/.style={fill=black!22},
+  group/.style={fill=black!55},
+  milestone/.style={fill=black!78},
+  bar label font=\small,
+  group label font=\small\bfseries,
+  milestone label font=\small\itshape,
+  title label font=\small
+]{1}{18}
+\gantttitle{Month}{18} \\
+\gantttitlelist{1,...,18}{1} \\
+\ganttgroup{Measurement}{1}{3} \\
+\ganttbar{Counter-trajectory / lead-time study}{1}{3} \\
+\ganttgroup{Predictor}{3}{8} \\
+\ganttbar{Online phase predictor}{3}{7} \\
+\ganttbar{Cost-gated actuation model}{6}{8} \\
+\ganttgroup{Mechanism}{5}{11} \\
+\ganttbar{sched\_ext placement + page staging}{5}{10} \\
+\ganttbar{Tiering co-design}{8}{11} \\
+\ganttgroup{Evaluation}{10}{15} \\
+\ganttbar{CXL hardware + emulation}{10}{14} \\
+\ganttbar{Predict-vs-react ablations}{13}{15} \\
+\ganttgroup{Writing}{14}{17} \\
+\ganttbar{Draft}{14}{16} \\
+\ganttmilestone{Submission}{17} \\
+\ganttmilestone{Artifact evaluation}{18}
+\end{ganttchart}%
+}
+\caption{Augur 18-month research plan.}
+\label{fig:gantt}
+\end{figure*}
+
+% Force the full PMC-driven-scheduling reference set to appear in the
+% bibliography even where a given citation is not made in-text. Remove this
+% line if you want only the works actually cited above.
+\nocite{snavely2000symbiotic,snavely2002priorities,bulpin2005hyperthreading,
+tam2007clustering,knauerhase2008osobservations,suh2002memory,fedorova2007isolation,
+banikazemi2008pam,zhuravlev2010contention,blagodurov2010contentionaware,
+merkel2010resourceconscious,blagodurov2011numa}
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{pmcsched-refs}
+
+\end{document}

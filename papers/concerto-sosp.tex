@@ -1,0 +1,283 @@
+% Concerto --- SOSP submission draft (acmart sigconf).
+% Compiles standalone in "nonacm" draft mode (Overleaf or a TeX Live install
+% with texlive-publishers, which ships acmart + ACM-Reference-Format.bst).
+% Requires the shared bibliography pmcsched-refs.bib in the same directory,
+% and the pgfgantt and array packages (both ship with TeX Live).
+% For a double-blind SOSP submission, replace the \documentclass line with:
+%   \documentclass[sigconf,review,anonymous]{acmart}
+% and fill in the \acmConference / \setcopyright metadata.
+
+\documentclass[sigconf,nonacm]{acmart}
+\settopmatter{printacmref=false}
+\setcopyright{none}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{pgfgantt}
+
+\begin{document}
+
+\title{Concerto: Counter-Driven Co-Optimization of Scheduling and
+Cache/Bandwidth Partitioning}
+
+\author{Anonymous Author(s)}
+\affiliation{%
+  \institution{Affiliation withheld for review}
+  \country{}
+}
+
+\begin{abstract}
+Two schools of thought address shared-resource contention on multicore
+servers. The \emph{partitioning} school carves the last-level cache (LLC) and
+memory bandwidth into isolated slices; the \emph{scheduling} school argues that
+partitioning is unnecessary and reacts to interference by reallocating cores at
+microsecond timescales. We argue that these are not competing philosophies but
+two actuators on the same underlying quantity---microarchitectural
+contention---and that the right system drives \emph{both} from a single
+performance-monitoring-counter (PMC) feedback loop. We present the design of
+Concerto, a counter-driven controller that jointly chooses thread placement and
+Intel RDT cache/bandwidth partitions. Concerto is motivated by a specific gap:
+the leading scheduling-only system, Caladan, explicitly cannot eliminate LLC
+interference and instead compensates by granting victims extra cores, while
+partitioning-only systems react too slowly to phased behavior. By treating
+placement and partitioning as a coupled control problem, Concerto closes the LLC
+gap without sacrificing the agility of fast core reallocation. We target chiplet
+and CXL-attached topologies, where the non-uniform LLC and interconnect break
+the static topology heuristics that commodity schedulers rely on, and we
+implement Concerto as a \texttt{sched\_ext} BPF scheduler so that the result is a
+deployable commodity-kernel artifact rather than a fork.
+\end{abstract}
+
+\maketitle
+
+\section{Introduction}
+Co-locating latency-critical (LC) and best-effort (BE) workloads is the primary
+lever for raising server utilization, but it reintroduces the contention that
+isolation was meant to prevent. The systems community has converged on two
+answers. \emph{Hardware partitioning}---Cache Allocation Technology (CAT) and
+Memory Bandwidth Allocation (MBA) under Intel RDT~\cite{intel-rdt,linux-resctrl},
+as used by Heracles~\cite{lo2015heracles} and PARTIES~\cite{chen2019parties}---
+slices the memory hierarchy so that a BE task cannot evict an LC task's working
+set. \emph{Fast scheduling}---exemplified by Caladan~\cite{fried2020caladan}---
+argues that partitioning is ``neither necessary nor sufficient'' because phased,
+bursty workloads change their resource needs faster than partitions can be
+re-drawn, and instead reacts by reallocating cores in microseconds.
+
+Both positions are partly right, and that is exactly the problem. Caladan's own
+design concedes that it \emph{cannot} address LLC interference directly: when an
+antagonist pollutes the shared cache, Caladan cannot un-pollute it, so it
+compensates by letting the victim steal additional cores to recover lost compute
+capacity~\cite{fried2020caladan}. Partitioning systems can remove the LLC
+pollution but pay a reaction-latency penalty and leave cores idle when a slice's
+owner is momentarily quiescent. Neither system actuates the knob the other one
+holds.
+
+Our thesis is that thread placement and hardware partitioning are
+\emph{duals}---two actuators on the single state variable of microarchitectural
+contention---and that a controller reading the right PMC vector can move both in
+concert, dominating either alone. The historical reason this was never built is
+that PMC-in-the-scheduler was considered too costly, too non-portable, and too
+hard to make stable; we revisit each of these in light of (i) RDT's
+hardware-maintained occupancy and bandwidth counters (CMT/MBM), (ii) the
+\texttt{sched\_ext} extensible scheduler class~\cite{linux-schedext}, which lets
+us deploy a counter-driven policy without forking the kernel, and (iii) the rise
+of chiplet and CXL topologies, where the static cache/NUMA heuristics in today's
+schedulers no longer describe the hardware.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+\item A formulation of scheduling and partitioning as a joint, multi-input
+multi-output control problem driven by a shared PMC state estimator, with a
+stability argument rather than a heuristic.
+\item Concerto, a \texttt{sched\_ext} implementation that co-actuates core
+placement and RDT CAT/MBA, with a bounded-overhead counter-multiplexing scheme.
+\item An evaluation plan on chiplet (AMD Genoa-class) and CXL-attached hardware
+that isolates the contribution of \emph{jointness} from either actuator in
+isolation.
+\end{enumerate}
+
+\section{Background and Motivation}
+\paragraph{Counter signals.}
+The contention-aware scheduling literature established that last-level-cache
+miss rate is a strong, cheap predictor of co-runner
+degradation~\cite{zhuravlev2010contention,blagodurov2010contentionaware}, an
+insight that traces back to hardware miss-rate monitors designed expressly to
+drive scheduling and partitioning~\cite{suh2002memory} and to cache-fair
+scheduling that adjusts timeslices from observed IPC~\cite{fedorova2007isolation}.
+Modern RDT exposes Cache Monitoring Technology (per-task LLC occupancy) and
+Memory Bandwidth Monitoring directly, so the state Concerto needs---occupancy,
+bandwidth, miss rate, IPC, and a stall breakdown---is available without
+high-overhead sampling.
+
+\paragraph{Why now: topology heuristics are failing.}
+Commodity schedulers place threads using a static description of which cores
+share a cache or a memory node~\cite{tam2007clustering}. On monolithic dies this
+captured most of the benefit cheaply. On chiplet processors the LLC is split
+across multiple cache complexes with non-uniform cross-complex latencies, and on
+CXL-attached systems bandwidth contention migrates off-package entirely. The
+static topology no longer predicts where contention will actually land, which
+reopens the case for a measured, counter-driven signal.
+
+\paragraph{The gap, concretely.}
+A planned motivating experiment co-locates a memcached LC service with a
+cache-thrashing BE antagonist and sweeps the antagonist's intensity. We expect to
+reproduce Caladan's result that core-stealing recovers throughput but not LC
+service time once the LLC is polluted, and to show that a single static CAT
+partition recovers service time but idles cores during LC quiescence---the two
+failure modes Concerto is designed to eliminate simultaneously.
+
+\section{Design}
+\paragraph{State estimation.}
+Concerto maintains a per-task and per-cache-domain estimate of contention from
+the RDT counters plus a small set of core PMCs. Counters are scarce and
+multiplexed; we bound estimation overhead by (i) reading hardware-maintained RDT
+occupancy/bandwidth, which require no event multiplexing, for the steady signal,
+and (ii) time-slicing a small rotating set of core events for the
+phase-transition signal, with a configurable cap on per-quantum counter work.
+
+\paragraph{Joint actuation.}
+Each control quantum, Concerto solves a small assignment-and-allocation step:
+which tasks share a cache domain (placement), and how the CAT/MBA budget is split
+across the co-resident tasks (partitioning). Placement handles the coarse,
+high-cost decision (which contention domain a task lives in); partitioning
+handles the fine, low-cost decision (how the domain's capacity is divided),
+including releasing a slice back to BE work the instant the LC owner goes idle so
+that partitioning does not strand capacity.
+
+\paragraph{Stability.}
+The risk in coupling two actuators is oscillation---placement and partitioning
+chasing each other. We treat the loop as a MIMO controller with explicit
+time-scale separation: placement runs at the slower load-balancing cadence and
+partitioning at the faster quantum, with the partitioner treated as the inner
+loop and placement as the outer loop. We will argue stability via this
+separation and bound the worst-case actuation rate.
+
+\paragraph{Mechanism.}
+Concerto is a \texttt{sched\_ext}~\cite{linux-schedext} BPF scheduler. Placement
+decisions are expressed through the scheduler class; partition decisions are
+applied through \texttt{resctrl}~\cite{linux-resctrl}. Running in
+\texttt{sched\_ext} keeps the artifact loadable on a stock kernel and makes the
+overhead and safety story defensible, since the policy is sandboxed and
+hot-swappable.
+
+\section{Evaluation Plan}
+\paragraph{Hardware.} A monolithic-LLC server (Sapphire-Rapids-class, RDT with
+CAT+MBA+CMT+MBM), a chiplet server (Genoa-class, multiple cache complexes), and a
+CXL-attached testbed.
+
+\paragraph{Workloads.} LC: memcached, Redis, a search-leaf microservice. BE:
+SPEC CPU, a stream/bandwidth antagonist, and a garbage-collected batch job (the
+Caladan stressor) to exercise abrupt phase shifts.
+
+\paragraph{Baselines.} Caladan (scheduling-only), PARTIES and a Heracles-style
+controller (partitioning-only), stock Linux CFS/EEVDF with static CAT, and
+core-pinning. The central comparison is Concerto vs.\ each \emph{single}-actuator
+baseline, to attribute wins to jointness rather than to either knob.
+
+\paragraph{Metrics and ablations.} p99/p99.9 LC latency, BE throughput, and
+machine utilization at fixed SLO. Ablations: placement-only Concerto,
+partitioning-only Concerto, and full Concerto; counter-budget sensitivity; and
+behavior across the monolithic/chiplet/CXL spectrum to show where jointness pays
+the most.
+
+\section{Related Work}
+Concerto sits at the junction of two lines. Contention-aware scheduling uses
+counters to separate antagonists across cache
+domains~\cite{zhuravlev2010contention,blagodurov2010contentionaware,
+fedorova2007isolation,tam2007clustering,suh2002memory}; QoS partitioning carves
+the hierarchy to protect LC tasks~\cite{lo2015heracles,chen2019parties}; and
+Caladan~\cite{fried2020caladan} argues for fast core reallocation over
+partitioning. Concerto's distinction, summarized in Table~\ref{tab:related}, is
+that it does not choose a side: it drives placement and partitioning from one PMC
+loop and is the first, to our knowledge, to close Caladan's acknowledged LLC gap
+by co-actuation rather than compensation.
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}>{\raggedright}p{2.6cm} >{\raggedright}p{3.1cm} >{\raggedright}p{3.5cm} l >{\raggedright}p{2.3cm} >{\raggedright\arraybackslash}p{2.2cm}@{}}
+\toprule
+\textbf{System} & \textbf{Signal} & \textbf{Actuator(s)} & \textbf{Mode} & \textbf{Commodity path?} & \textbf{Target HW} \\
+\midrule
+Suh et al.\ '02~\cite{suh2002memory}        & Cache miss-rate curves        & Scheduling + partitioning (proposed) & React   & No (custom HW)   & Uniform CMP \\
+Fedorova et al.\ '07~\cite{fedorova2007isolation} & IPC (cache-fair)        & Scheduling (timeslice)               & React   & Research kernel  & CMP \\
+Zhuravlev et al.\ '10~\cite{zhuravlev2010contention} & LLC miss rate        & Scheduling (placement)               & React   & Research         & Multicore \\
+Heracles '15~\cite{lo2015heracles}          & Latency probes, util.\        & Partitioning (CAT, DVFS, power)      & React   & Yes              & Uniform \\
+PARTIES '19~\cite{chen2019parties}          & Per-service QoS               & Partitioning (multi-resource)        & React   & Yes              & Uniform \\
+Caladan '20~\cite{fried2020caladan}         & Mem.\ bandwidth, req.\ time   & Scheduling (fast core realloc.)      & React   & Kernel module    & Uniform \\
+\textbf{Concerto} (this work)               & Full PMC + CMT/MBM            & \textbf{Scheduling + partitioning (joint)} & React & \texttt{sched\_ext} & \textbf{Chiplet / CXL} \\
+\textbf{Augur} (companion)                  & PMC \emph{time series}        & Scheduling + page tiering            & \textbf{Predict} & \texttt{sched\_ext} & Tiered / CXL \\
+\bottomrule
+\end{tabular}
+\caption{Where Concerto sits relative to counter-driven scheduling and QoS
+partitioning. Prior systems commit to a single actuator and react after
+contention appears; Concerto co-actuates scheduling and partitioning from one PMC
+loop, and the companion Augur design shifts from reaction to prediction.
+``Commodity path?'' indicates whether the technique was shown in a deployable
+commodity-kernel path rather than simulation or a research OS.}
+\label{tab:related}
+\end{table*}
+
+\section{Research Plan and Threats to Validity}
+The dominant threat is that Concerto reduces to ``Caladan plus a CAT knob.'' To
+refute it, the chiplet/CXL results must show a regime where neither single
+actuator suffices and the joint controller is strictly better, and the stability
+argument must hold under adversarial phase shifts. A secondary threat is counter
+overhead in the scheduler path; the \texttt{sched\_ext} sandbox and the
+RDT-first estimation strategy are designed to keep this measurable and bounded.
+The 18-month plan is shown in Figure~\ref{fig:gantt}.
+
+\begin{figure*}[t]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{ganttchart}[
+  hgrid, vgrid,
+  x unit=0.82cm,
+  y unit title=0.6cm,
+  y unit chart=0.6cm,
+  title height=1,
+  bar height=0.6,
+  bar/.style={fill=black!22},
+  group/.style={fill=black!55},
+  milestone/.style={fill=black!78},
+  bar label font=\small,
+  group label font=\small\bfseries,
+  milestone label font=\small\itshape,
+  title label font=\small
+]{1}{18}
+\gantttitle{Month}{18} \\
+\gantttitlelist{1,...,18}{1} \\
+\ganttgroup{Measurement \& motivation}{1}{3} \\
+\ganttbar{Caladan / PARTIES reproduction}{1}{3} \\
+\ganttgroup{Mechanism}{2}{9} \\
+\ganttbar{PMC + CMT/MBM state estimator}{2}{5} \\
+\ganttbar{Joint controller + stability proof}{4}{8} \\
+\ganttbar{sched\_ext + resctrl integration}{6}{9} \\
+\ganttgroup{Evaluation}{8}{14} \\
+\ganttbar{Monolithic-LLC baselines}{8}{10} \\
+\ganttbar{Chiplet \& CXL studies}{10}{14} \\
+\ganttgroup{Writing}{13}{17} \\
+\ganttbar{Draft + ablations}{13}{16} \\
+\ganttmilestone{SOSP deadline}{17} \\
+\ganttmilestone{Artifact evaluation}{18}
+\end{ganttchart}%
+}
+\caption{Concerto 18-month research plan.}
+\label{fig:gantt}
+\end{figure*}
+
+% Force the full PMC-driven-scheduling reference set to appear in the
+% bibliography even where a given citation is not made in-text. Remove this
+% line if you want only the works actually cited above.
+\nocite{snavely2000symbiotic,snavely2002priorities,bulpin2005hyperthreading,
+tam2007clustering,knauerhase2008osobservations,suh2002memory,fedorova2007isolation,
+banikazemi2008pam,zhuravlev2010contention,blagodurov2010contentionaware,
+merkel2010resourceconscious,blagodurov2011numa}
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{pmcsched-refs}
+
+\end{document}
