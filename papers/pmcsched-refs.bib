@@ -1,12 +1,12 @@
 % Master bibliography for the Concerto and Augur drafts.
-% Both concerto-sosp.tex and augur-sosp.tex reference this file via
-%   \bibliography{pmcsched-refs}
-% Contains (a) the full PMC-driven-scheduling reference set assembled earlier and
-% (b) the prior-art systems cited in the two proposals. Every entry carries a URL
-% (and a DOI where one exists). ACM-Reference-Format renders both.
+% Referenced by both .tex files via \bibliography{pmcsched-refs}.
+% Each `url` points at a free full-text PDF where one is openly available, so
+% Zotero's "Find Available PDF" attaches the actual paper, not just a link.
+% `doi` is retained for canonical identity. Entries without an OA PDF keep their
+% publisher landing page and are noted in the accompanying message.
 
 % ---------------------------------------------------------------------------
-% PMC-driven / contention-aware scheduling: the full earlier set
+% PMC-driven / contention-aware scheduling
 % ---------------------------------------------------------------------------
 
 @inproceedings{snavely2000symbiotic,
@@ -61,7 +61,7 @@
   year      = {2007},
   publisher = {ACM},
   doi       = {10.1145/1272998.1273004},
-  url       = {https://dl.acm.org/doi/10.1145/1272998.1273004}
+  url       = {http://www.cs.toronto.edu/~demke/2227/S.14/Papers/p47-tam.pdf}
 }
 
 @inproceedings{fedorova2007isolation,
@@ -73,7 +73,7 @@
   year      = {2007},
   publisher = {IEEE Computer Society},
   doi       = {10.1109/PACT.2007.40},
-  url       = {https://ieeexplore.ieee.org/document/4336197}
+  url       = {https://dash.harvard.edu/server/api/core/bitstreams/7312037c-8dd8-6bd4-e053-0100007fdf3b/content}
 }
 
 @article{knauerhase2008osobservations,
@@ -139,11 +139,11 @@
   booktitle = {Proceedings of the 2011 USENIX Annual Technical Conference (USENIX ATC)},
   year      = {2011},
   publisher = {USENIX Association},
-  url       = {https://www.usenix.org/conference/usenixatc11/case-numa-aware-contention-management-multicore-systems}
+  url       = {https://www.usenix.org/legacy/event/atc11/tech/final_files/Blagodurov.pdf}
 }
 
 % ---------------------------------------------------------------------------
-% Datacenter QoS / interference management (proposal prior art)
+% Datacenter QoS / interference management
 % ---------------------------------------------------------------------------
 
 @inproceedings{lo2015heracles,
@@ -155,7 +155,7 @@
   year      = {2015},
   publisher = {ACM},
   doi       = {10.1145/2749469.2749475},
-  url       = {https://dl.acm.org/doi/10.1145/2749469.2749475}
+  url       = {http://csl.stanford.edu/~christos/publications/2015.heracles.isca.pdf}
 }
 
 @inproceedings{chen2019parties,
@@ -167,7 +167,7 @@
   year      = {2019},
   publisher = {ACM},
   doi       = {10.1145/3297858.3304005},
-  url       = {https://dl.acm.org/doi/10.1145/3297858.3304005}
+  url       = {https://people.csail.mit.edu/delimitrou/papers/2019.asplos.parties.pdf}
 }
 
 @inproceedings{ousterhout2019shenango,
@@ -178,7 +178,7 @@
   pages     = {361--378},
   year      = {2019},
   publisher = {USENIX Association},
-  url       = {https://www.usenix.org/conference/nsdi19/presentation/ousterhout}
+  url       = {https://www.usenix.org/system/files/nsdi19-ousterhout.pdf}
 }
 
 @inproceedings{fried2020caladan,
@@ -188,11 +188,11 @@
   pages     = {281--297},
   year      = {2020},
   publisher = {USENIX Association},
-  url       = {https://www.usenix.org/conference/osdi20/presentation/fried}
+  url       = {https://www.usenix.org/system/files/osdi20-fried.pdf}
 }
 
 % ---------------------------------------------------------------------------
-% Tiered / CXL memory (proposal prior art)
+% Tiered / CXL memory
 % ---------------------------------------------------------------------------
 
 @inproceedings{maruf2023tpp,
@@ -205,7 +205,7 @@
   year      = {2023},
   publisher = {ACM},
   doi       = {10.1145/3582016.3582063},
-  url       = {https://dl.acm.org/doi/10.1145/3582016.3582063}
+  url       = {https://arxiv.org/pdf/2206.02878}
 }
 
 @inproceedings{li2023pond,
@@ -219,11 +219,11 @@
   year      = {2023},
   publisher = {ACM},
   doi       = {10.1145/3575693.3578835},
-  url       = {https://dl.acm.org/doi/10.1145/3575693.3578835}
+  url       = {https://arxiv.org/pdf/2203.00241}
 }
 
 % ---------------------------------------------------------------------------
-% Mechanisms / specifications
+% Mechanisms / specifications (no PDF; reference pages)
 % ---------------------------------------------------------------------------
 
 @misc{intel-rdt,
